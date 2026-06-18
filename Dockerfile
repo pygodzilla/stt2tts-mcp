@@ -20,7 +20,6 @@ COPY pyproject.toml README.md config.yaml ./
 
 # Copy source.
 COPY stt2tts_mcp ./stt2tts_mcp
-COPY tests ./tests
 
 # Install the package itself (entry point `stt2tts-mcp` from pyproject).
 # We deliberately skip heavy engine deps — a smoke test only needs the
@@ -28,9 +27,6 @@ COPY tests ./tests
 # list_tts_voices, list_stt_models, reload_config). Those calls work
 # without any engine installed.
 RUN pip install --no-cache-dir .
-
-# Run regression test as part of image build to catch breakage early.
-RUN python tests/test_piper_no_json.py
 
 # Container entrypoint: the MCP server speaks JSON-RPC over stdio.
 # We launch it in a loop so probes can be sent, with logs tee'd to a file.

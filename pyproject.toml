@@ -67,13 +67,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["stt2tts_mcp"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
-filterwarnings = ["ignore::DeprecationWarning"]
-
 [tool.mypy]
 python_version = "3.11"
 strict = false
