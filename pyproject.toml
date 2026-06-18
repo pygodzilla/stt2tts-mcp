@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [
-    { name = "OpenCode Agent", email = "contactus.lastcrown@gmail.com" }
+    { name = "Adarsh", email = "adarsh@lastcrown.in" }
 ]
 keywords = ["mcp", "mcp-server", "stt", "tts", "speech-to-text", "text-to-speech", "whisper", "piper", "kokoro"]
 classifiers = [
@@ -71,6 +71,7 @@ packages = ["stt2tts_mcp"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.mypy]
