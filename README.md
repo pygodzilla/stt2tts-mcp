@@ -5,8 +5,8 @@ Local-first speech-to-text and text-to-speech MCP server. Hot-swappable engines 
 ```
 ┌──────────────┐     stdio      ┌──────────────────┐
 │ MCP client   │ ◀────────────▶ │ stt2tts-mcp      │
-│ (opencode,   │                │  ├─ STT engine   │ ──▶ faster-whisper
-│  Claude,…)   │                │  └─ TTS engine   │ ──▶ piper / kokoro / coqui
+│              │                │  ├─ STT engine   │ ──▶ faster-whisper
+│              │                │  └─ TTS engine   │ ──▶ piper / kokoro / coqui
 └──────────────┘                └──────────────────┘
                                        │
                                        ▼
@@ -26,7 +26,8 @@ pip install stt2tts-mcp
 pip install stt2tts-mcp[stt-faster-whisper]   # local STT
 pip install stt2tts-mcp[tts-piper]            # local TTS (~50MB voices)
 
-# Register with an MCP client (opencode.json):
+# Register with your MCP client (consult your client's docs for the exact
+# config file location — most use mcp_config.json or a per-client equivalent):
 {
   "mcp": {
     "stt2tts": {
