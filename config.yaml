@@ -1,0 +1,27 @@
+# STT2TTS MCP Server Configuration
+# Hot-swappable STT and TTS engines — change `engine` here and call
+# the `reload_config` MCP tool (or restart the server). No code changes needed.
+
+stt:
+  # Active STT engine: faster_whisper | sherpa_onnx | openai_api | ollama | lmstudio
+  engine: faster_whisper
+  enabled: true
+  params:
+    model_size: base.en        # tiny.en | base.en | small.en | medium.en
+    device: cpu                # cpu | cuda
+    compute_type: int8         # int8 | float16 | float32
+    download_dir: ~/.cache/whisper
+    language: en               # default language
+
+tts:
+  # Active TTS engine: piper | kokoro | coqui | openai_api | ollama | lmstudio
+  engine: piper
+  enabled: true
+  params:
+    voice: en_US-lessac-medium   # Run `piper --voices` to list available voices
+    model_dir: ~/.cache/piper
+    sentence_samples: 100
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
