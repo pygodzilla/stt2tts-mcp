@@ -75,7 +75,6 @@ class PiperTTSEngine(TTSEngine):
         cmd = [
             exe,
             "--model", str(model_path),
-            "--json",
             "--output_file", output_path,
         ]
 
