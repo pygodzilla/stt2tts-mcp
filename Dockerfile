@@ -1,5 +1,6 @@
-# STT2TTS MCP server — temporary test image
-# Builds a slim container that boots the server and stays alive for stdio probes.
+# STT2TTS MCP server — production image
+# Builds a slim container that runs the MCP server over stdio.
+# Tests live on the `dev` branch and are not part of this image.
 
 FROM python:3.11-slim
 
