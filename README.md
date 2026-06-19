@@ -95,13 +95,19 @@ All formats ffmpeg supports (wav, mp3, ogg, flac, m4a) are accepted; STT input i
 
 ## Develop
 
+Source-only releases ship on `main` for clean installs. The `dev` branch
+carries the test suite (`tests/test_config_loader.py`,
+`tests/test_mcp_integration.py`, `tests/test_piper_no_json.py`) for
+contributors.
+
 ```bash
-git clone https://github.com/your-org/stt2tts-mcp
+git clone https://github.com/pygodzilla/stt2tts-mcp
 cd stt2tts-mcp
+git checkout dev                 # for tests + dev iteration
 pip install -e ".[all]"
 python -m stt2tts_mcp.server
 ```
 
 ## License
 
-Apache 2.0
+MIT
