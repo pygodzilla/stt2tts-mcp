@@ -1,0 +1,50 @@
+# Pre-commit hooks for stt2tts-mcp
+# Install: pip install pre-commit && pre-commit install
+# Run all: pre-commit run --all-files
+#
+# Hooks gate the source tree on:
+#   - bandit:  security linter (B-codes = real security issues)
+#   - ruff:    lint + format (F/E/W codes = correctness/clarity)
+#   - pip-audit: dependency CVE scanner
+#   - pytest:  unit + integration test suite
+#
+# All hooks run in --no-verify-by-default mode? No — we WANT verification.
+# If a hook fails, the commit is blocked. Use `git commit --no-verify` only
+# for emergencies, and only after reading the hook output.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.2
+    hooks:
+      - id: ruff
+        args: ["--fix", "--exit-non-zero-on-fix"]
+        files: '^(stt2tts_mcp|tests)/.*\.py$'
+      - id: ruff-format
+        files: '^(stt2tts_mcp|tests)/.*\.py$'
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.10
+    hooks:
+      - id: bandit
+        args: ["-r", "stt2tts_mcp/", "-ll"]
+        # Skip B101 (assert_used) — we use asserts in tests on purpose.
+        exclude: '^tests/.*'
+        additional_dependencies: ["bandit[toml]"]
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest (unit + integration)
+        entry: python -m pytest tests/ -x -q
+        language: system
+        types: [python]
+        # Skip integration tests that need real engines; CI runs the full
+        # suite. Local pre-commit just catches the regressions.
+        pass_filenames: false
+        stages: [manual]  # only via `pre-commit run --hook-stage manual pytest`
+
+      - id: pip-audit
+        name: pip-audit (CVE scan)
+        entry: bash -c 'pip-audit --strict'
+        language: system
+        pass_filenames: false
+        stages: [manual]

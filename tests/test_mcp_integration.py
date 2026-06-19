@@ -104,6 +104,23 @@ class MCPTestClient:
     @classmethod
     async def spawn(cls) -> "MCPTestClient":
         """Spawn the server subprocess and return a connected client."""
+        return await cls.spawn_with_env(env=None)
+
+    @classmethod
+    async def spawn_with_env(
+        cls, env: dict[str, str] | None = None
+    ) -> "MCPTestClient":
+        """Spawn the server subprocess with a custom environment.
+
+        Use this when a test needs to inject env vars (e.g., a lower text
+        cap). Default `spawn()` inherits the parent env, which is correct
+        for normal use.
+        """
+        import os
+        full_env = None
+        if env is not None:
+            full_env = os.environ.copy()
+            full_env.update(env)
         proc = await asyncio.create_subprocess_exec(
             sys.executable,
             "-u",  # unbuffered — critical for stdio JSON-RPC
@@ -113,6 +130,7 @@ class MCPTestClient:
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=full_env,
         )
         client = cls(proc)
         await client._initialize()
@@ -267,8 +285,13 @@ async def client():
 
 
 async def test_initialize_returns_server_identity(client: MCPTestClient) -> None:
-    """The MCP handshake must succeed and identify the server."""
+    """The MCP handshake must succeed and identify the server (MCP 2.0)."""
     assert client.server_info.get("name") == "stt2tts-mcp"
+    # MCP 2.0 (2025-11-25) requires server to advertise its version.
+    assert client.server_info.get("version"), (
+        f"Server version missing (MCP 2.0 ready servers must declare version): "
+        f"{client.server_info}"
+    )
     assert client.protocol_version, "protocol version is empty"
     # Server should declare tool capability — otherwise tools/list won't work.
     assert "tools" in client.server_capabilities, (
@@ -282,7 +305,7 @@ async def test_initialize_returns_server_identity(client: MCPTestClient) -> None
 
 
 async def test_list_tools_advertises_six_tools(client: MCPTestClient) -> None:
-    """list_tools must return all six tools defined in server.py."""
+    """list_tools must return all six tools defined in server.py (MCP 2.0)."""
     tools = await client.list_tools()
     names = {t["name"] for t in tools}
     assert names == {
@@ -294,10 +317,30 @@ async def test_list_tools_advertises_six_tools(client: MCPTestClient) -> None:
         "health_check",
     }, f"Unexpected tool list: {names}"
 
-    # Every tool must have a name and a non-empty description.
+    # Every tool must have a name, title, and description (MCP 2.0 ready).
     for tool in tools:
         assert tool["name"]
-        assert tool.get("description")
+        assert tool.get("description"), f"{tool['name']} missing description"
+        # MCP 2.0 (2025-11-25): title is optional but recommended for display.
+        assert tool.get("title"), f"{tool['name']} missing title (MCP 2.0)"
+
+    # Every tool must declare trust & safety annotations (MCP 2.0 best practice).
+    for tool in tools:
+        ann = tool.get("annotations") or {}
+        assert "readOnlyHint" in ann, (
+            f"{tool['name']} missing readOnlyHint annotation"
+        )
+        assert "destructiveHint" in ann, (
+            f"{tool['name']} missing destructiveHint annotation"
+        )
+
+    # transcribe and speak must declare outputSchema (structured outputs).
+    by_name = {t["name"]: t for t in tools}
+    for must_have_output in ("transcribe", "speak", "health_check"):
+        assert "outputSchema" in by_name[must_have_output], (
+            f"{must_have_output} must declare outputSchema for MCP 2.0 "
+            f"structured outputs"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -470,6 +513,121 @@ async def test_speak_missing_text_argument_returns_error(
     assert result["isError"], (
         f"expected error for missing 'text', got: {result['content']}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 1 — new features end-to-end
+# ---------------------------------------------------------------------------
+
+
+async def test_speak_dry_run_does_not_write_file(
+    client: MCPTestClient, tmp_path: Path
+) -> None:
+    """speak with dry_run=true must preview without writing the output file."""
+    output = tmp_path / "should_not_exist.wav"
+    result = await client.call_tool(
+        "speak",
+        {"text": "hello", "output_path": str(output), "dry_run": True},
+    )
+    assert not result["isError"], f"speak dry-run errored: {result['content']}"
+    text = result["content"][0]["text"]
+    assert "Dry run" in text
+    assert "would synthesize" in text
+    # The most important assertion: the file MUST NOT exist.
+    assert not output.exists(), (
+        f"dry_run=true must NOT write {output} — but the file was created"
+    )
+
+
+async def test_speak_empty_text_returns_structured_error(
+    client: MCPTestClient,
+) -> None:
+    """Empty text after sanitization → EmptyTextError → isError=True."""
+    result = await client.call_tool("speak", {"text": ""})
+    assert result["isError"]
+    text = " ".join(c.get("text", "") for c in result["content"])
+    assert "empty" in text.lower() or "empty_text" in text
+
+
+async def test_speak_huge_text_returns_text_too_long_error(
+    tmp_path: Path,
+) -> None:
+    """Text exceeding STT2TTS_MAX_TEXT_CHARS → TextTooLongError.
+
+    The subprocess needs the env var set BEFORE it imports the server
+    module, so we spawn a custom client with a custom env.
+    """
+    custom_client = await MCPTestClient.spawn_with_env(
+        env={"STT2TTS_MAX_TEXT_CHARS": "10"}
+    )
+    try:
+        result = await custom_client.call_tool("speak", {"text": "x" * 100})
+        assert result["isError"]
+        text = " ".join(c.get("text", "") for c in result["content"])
+        assert "text_too_long" in text or "exceeds" in text.lower()
+    finally:
+        await custom_client.close()
+
+
+async def test_transcribe_nonexistent_file_returns_invalid_path(
+    client: MCPTestClient, tmp_path: Path
+) -> None:
+    """Sprint 1: missing files now produce InvalidPathError (invalid_path code)."""
+    fake = tmp_path / "does_not_exist.wav"
+    result = await client.call_tool("transcribe", {"audio_path": str(fake)})
+    assert result["isError"]
+    text = " ".join(c.get("text", "") for c in result["content"])
+    assert "invalid_path" in text or "does not exist" in text.lower()
+
+
+async def test_transcribe_traversal_attack_blocked(
+    client: MCPTestClient, tmp_path: Path
+) -> None:
+    """Sprint 1 A2: a `..` traversal is rejected cleanly (no leak of /etc)."""
+    sneaky = tmp_path / ".." / ".." / "etc" / "passwd"
+    # Even without the file existing, the path-safety check should reject
+    # based on format (no .wav extension) when allowed_extensions is set.
+    # Without an allowlist, a non-existent path raises invalid_path with
+    # "does not exist". Either way: structured error.
+    result = await client.call_tool("transcribe", {"audio_path": str(sneaky)})
+    assert result["isError"]
+
+
+async def test_audit_log_is_written(tmp_path: Path) -> None:
+    """Sprint 1 A1: tool calls write one append-only JSONL entry.
+
+    Spawns a custom subprocess with STT2TTS_AUDIT_DIR pointing at a tmp
+    path so we can verify the entry is written where we expect.
+    """
+    import json as json_mod
+    audit_dir = tmp_path / "audit"
+    custom_client = await MCPTestClient.spawn_with_env(
+        env={"STT2TTS_AUDIT_DIR": str(audit_dir)}
+    )
+    try:
+        # Trigger a cheap read tool (not rate-limited).
+        result = await custom_client.call_tool("health_check", {})
+        # Don't care about the result — we just want a tool call to fire.
+        _ = result
+
+        # Audit log file should now exist in our tmp dir.
+        log_path = audit_dir / "audit.log"
+        assert log_path.exists(), (
+            f"Audit log not created at {log_path}"
+        )
+        lines = log_path.read_text(encoding="utf-8").strip().splitlines()
+        # Audit logger writes compact JSON (separators=(',', ':')), so
+        # match on substring without worrying about whitespace.
+        assert any('"tool":"health_check"' in line for line in lines), (
+            f"No health_check entry in audit log:\n{chr(10).join(lines[-5:])}"
+        )
+        # Verify the entry is valid JSON with expected fields.
+        entry = json_mod.loads(lines[-1])
+        assert entry["tool"] == "health_check"
+        assert "ts" in entry
+        assert "duration_ms" in entry
+    finally:
+        await custom_client.close()
 
 
 # ---------------------------------------------------------------------------
