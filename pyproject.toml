@@ -12,7 +12,6 @@ keywords = ["mcp", "mcp-server", "stt", "tts", "speech-to-text", "text-to-speech
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -60,6 +59,11 @@ all = [
 
 [project.scripts]
 stt2tts-mcp = "stt2tts_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/pygodzilla/stt2tts-mcp"
+Repository = "https://github.com/pygodzilla/stt2tts-mcp"
+Issues = "https://github.com/pygodzilla/stt2tts-mcp/issues"
 
 [build-system]
 requires = ["hatchling"]
